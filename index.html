@@ -7,7 +7,10 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      background-color: #1e90ff; /* Ganti background dengan warna biru */
+      background-image: url('https://upload.wikimedia.org/wikipedia/commons/5/57/LRT_Sumsel.jpg'); /* Background LRT Sumsel */
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed; /* Menjaga gambar latar belakang tetap saat scroll */
       color: #fff;
       margin: 0;
       padding: 20px;
@@ -18,9 +21,14 @@
       margin: 0 auto;
       position: relative;
       z-index: 2;
+      background: rgba(0, 0, 0, 0.6); /* Memberikan latar belakang semi-transparan untuk konten */
+      padding: 20px;
+      border-radius: 10px;
     }
     h1 {
       margin-bottom: 20px;
+      font-size: 2em;
+      color: #fff; /* Judul berwarna putih */
     }
     .widgets {
       display: flex;
@@ -39,10 +47,11 @@
     }
     .widget h2 {
       margin: 10px 0;
+      color: #000; /* Warna hitam untuk subjudul widget */
     }
     .alert {
       background: rgba(255, 69, 0, 0.8);
-      color: #fff;
+      color: #fff; /* Teks alert tetap putih */
       padding: 10px;
       border-radius: 5px;
       margin: 10px 0;
@@ -62,6 +71,7 @@
       margin: 5px;
       border-radius: 5px;
       border: 1px solid #ddd;
+      color: #000; /* Warna teks pada input dan tombol hitam */
     }
     img {
       max-width: 100%;
@@ -72,10 +82,10 @@
 </head>
 <body>
   <div class="container">
-    <h1>Monitoring Suhu & Kelembapan - LRT Sumsel</h1>
-    <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/Logo_LRT_Sumsel.png" alt="Logo LRT Sumsel">
+    <h1>Monitoring Suhu & Kelembapan<br>Ruang Peralatan Signalling & Communication<br>LRT Sumsel Divre III Palembang</h1>
+    <img src="img/Lrt_palembang.jpg" alt="Logo LRT Sumsel">
 
-    <div id="alert" class="alert">⚠️ Suhu melebihi 27°C! Harap segera cek kondisi! ⚠️</div>
+    <div id="alert" class="alert">⚠️ Suhu melebihi 26°C! Harap segera cek kondisi! ⚠️</div>
 
     <div class="widgets">
       <div class="widget" id="widget-suhu">
@@ -109,12 +119,12 @@
           </tr>
         </tbody>
       </table>
-      <button id="download-btn" onclick="downloadData()" style="display:none;">Download Data</button>
+      <button id="download-btn" style="display:none;">Download Data</button>
     </div>
   </div>
 
   <script>
-    const apiKey = "S1L16VTO8J421VNA"; // API Key dari Thingspeak
+    const apiKey = "S1L16VTO8J421VNA"; // Read API Key dari Thingspeak
     const channelID = "2784831"; // Channel ID dari Thingspeak
     let allData = []; // Array untuk menyimpan semua data
 
@@ -123,11 +133,16 @@
       try {
         const response = await fetch(`https://api.thingspeak.com/channels/${channelID}/feeds.json?api_key=${apiKey}&results=100`);
         const data = await response.json();
-        allData = data.feeds.map(feed => ({
+
+        // Menambahkan data terbaru ke dalam array allData tanpa menghapus data lama
+        const newData = data.feeds.map(feed => ({
           time: new Date(feed.created_at),
           suhu: feed.field1 || "--",
           kelembapan: feed.field2 || "--",
         }));
+
+        // Menambahkan data baru ke allData tanpa menghapus data lama
+        allData = [...allData, ...newData];
 
         // Update data real-time (data terakhir)
         const latestData = allData[allData.length - 1];
@@ -147,7 +162,7 @@
             // Kembalikan warna widget
             document.getElementById("widget-suhu").style.background = "rgba(255, 255, 255, 0.2)";
             document.getElementById("widget-suhu").style.color = "#fff";
-            document.getElementById("suhu").style.color = "#fff";
+            document.getElementById("suhu").style.color = "#000"; // Warna teks suhu menjadi hitam
           }
         }
       } catch (error) {
@@ -160,12 +175,14 @@
       const searchDate = document.getElementById("search-date").value;
       const searchTime = document.getElementById("search-time").value;
 
+      // Memfilter data yang sesuai dengan tanggal dan waktu yang dimasukkan
       const filteredData = allData.filter(d => {
         const dataDate = d.time.toISOString().split("T")[0];
         const dataTime = d.time.toTimeString().split(" ")[0].slice(0, 5);
         return (!searchDate || searchDate === dataDate) && (!searchTime || searchTime === dataTime);
       });
 
+      // Render data setelah update
       renderData(filteredData);
     }
 
@@ -181,39 +198,9 @@
             </tr>
           `).join("")
         : `<tr><td colspan="3">Tidak ada data yang sesuai.</td></tr>`;
-
-      // Tampilkan tombol download jika ada data yang ditampilkan
-      if (data.length > 0) {
-        document.getElementById("download-btn").style.display = "inline-block";
-      } else {
-        document.getElementById("download-btn").style.display = "none";
-      }
     }
 
-    // Fungsi untuk mendownload data dalam format CSV
-    function downloadData() {
-      const data = allData.map(d => ({
-        waktu: d.time.toLocaleString(),
-        suhu: d.suhu,
-        kelembapan: d.kelembapan
-      }));
-
-      let csvContent = "Waktu,Suhu (°C),Kelembapan (%)\n";
-      data.forEach(d => {
-        csvContent += `${d.waktu},${d.suhu},${d.kelembapan}\n`;
-      });
-
-      // Membuat link download CSV
-      const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", "data_logger.csv");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    // Ambil data saat halaman dimuat
+    // Ambil data saat halaman dimuat, namun hanya update setiap 10 detik
     setInterval(fetchData, 10000); // Update data setiap 10 detik
     fetchData();
   </script>
