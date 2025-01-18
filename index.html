@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitoring Suhu & Kelembapan</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #1e90ff; /* Ganti background dengan warna biru */
+      color: #fff;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 2;
+    }
+    h1 {
+      margin-bottom: 20px;
+    }
+    .widgets {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin: 20px 0;
+    }
+    .widget {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      flex: 1;
+      text-align: center;
+      transition: background 0.3s ease, color 0.3s ease;
+    }
+    .widget h2 {
+      margin: 10px 0;
+    }
+    .alert {
+      background: rgba(255, 69, 0, 0.8);
+      color: #fff;
+      padding: 10px;
+      border-radius: 5px;
+      margin: 10px 0;
+      display: none;
+    }
+    .search-container {
+      margin-top: 30px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    .search-container input,
+    .search-container button {
+      padding: 10px;
+      font-size: 16px;
+      margin: 5px;
+      border-radius: 5px;
+      border: 1px solid #ddd;
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Monitoring Suhu & Kelembapan - LRT Sumsel</h1>
+    <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/Logo_LRT_Sumsel.png" alt="Logo LRT Sumsel">
+
+    <div id="alert" class="alert">⚠️ Suhu melebihi 27°C! Harap segera cek kondisi! ⚠️</div>
+
+    <div class="widgets">
+      <div class="widget" id="widget-suhu">
+        <h2>Suhu</h2>
+        <p id="suhu" style="font-size: 2em;">--</p>
+        <p>°C</p>
+      </div>
+      <div class="widget" id="widget-kelembapan">
+        <h2>Kelembapan</h2>
+        <p id="kelembapan" style="font-size: 2em;">--</p>
+        <p>%</p>
+      </div>
+    </div>
+
+    <div class="search-container">
+      <h2>Pencarian Data</h2>
+      <input type="date" id="search-date" placeholder="Pilih tanggal">
+      <input type="time" id="search-time" placeholder="Pilih waktu">
+      <button onclick="filterData()">Cari</button>
+      <table>
+        <thead>
+          <tr>
+            <th>Waktu</th>
+            <th>Suhu (°C)</th>
+            <th>Kelembapan (%)</th>
+          </tr>
+        </thead>
+        <tbody id="data-logger">
+          <tr>
+            <td colspan="3">Masukkan parameter pencarian untuk melihat data.</td>
+          </tr>
+        </tbody>
+      </table>
+      <button id="download-btn" onclick="downloadData()" style="display:none;">Download Data</button>
+    </div>
+  </div>
+
+  <script>
+    const apiKey = "S1L16VTO8J421VNA"; // API Key dari Thingspeak
+    const channelID = "2784831"; // Channel ID dari Thingspeak
+    let allData = []; // Array untuk menyimpan semua data
+
+    // Fungsi untuk mengambil data terbaru dari Thingspeak
+    async function fetchData() {
+      try {
+        const response = await fetch(`https://api.thingspeak.com/channels/${channelID}/feeds.json?api_key=${apiKey}&results=100`);
+        const data = await response.json();
+        allData = data.feeds.map(feed => ({
+          time: new Date(feed.created_at),
+          suhu: feed.field1 || "--",
+          kelembapan: feed.field2 || "--",
+        }));
+
+        // Update data real-time (data terakhir)
+        const latestData = allData[allData.length - 1];
+        if (latestData) {
+          document.getElementById("suhu").textContent = latestData.suhu;
+          document.getElementById("kelembapan").textContent = latestData.kelembapan;
+
+          // Periksa suhu untuk alarm
+          if (parseFloat(latestData.suhu) > 27) {
+            document.getElementById("alert").style.display = "block";
+            // Ubah warna widget jika suhu > 27°C
+            document.getElementById("widget-suhu").style.background = "rgba(255, 0, 0, 0.8)";
+            document.getElementById("widget-suhu").style.color = "#fff";
+            document.getElementById("suhu").style.color = "#fff";
+          } else {
+            document.getElementById("alert").style.display = "none";
+            // Kembalikan warna widget
+            document.getElementById("widget-suhu").style.background = "rgba(255, 255, 255, 0.2)";
+            document.getElementById("widget-suhu").style.color = "#fff";
+            document.getElementById("suhu").style.color = "#fff";
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    }
+
+    // Fungsi untuk memfilter data berdasarkan waktu dan tanggal
+    function filterData() {
+      const searchDate = document.getElementById("search-date").value;
+      const searchTime = document.getElementById("search-time").value;
+
+      const filteredData = allData.filter(d => {
+        const dataDate = d.time.toISOString().split("T")[0];
+        const dataTime = d.time.toTimeString().split(" ")[0].slice(0, 5);
+        return (!searchDate || searchDate === dataDate) && (!searchTime || searchTime === dataTime);
+      });
+
+      renderData(filteredData);
+    }
+
+    // Fungsi untuk menampilkan data hasil pencarian ke tabel
+    function renderData(data) {
+      const dataLogger = document.getElementById("data-logger");
+      dataLogger.innerHTML = data.length
+        ? data.map(d => `
+            <tr>
+              <td>${d.time.toLocaleString()}</td>
+              <td>${d.suhu}</td>
+              <td>${d.kelembapan}</td>
+            </tr>
+          `).join("")
+        : `<tr><td colspan="3">Tidak ada data yang sesuai.</td></tr>`;
+
+      // Tampilkan tombol download jika ada data yang ditampilkan
+      if (data.length > 0) {
+        document.getElementById("download-btn").style.display = "inline-block";
+      } else {
+        document.getElementById("download-btn").style.display = "none";
+      }
+    }
+
+    // Fungsi untuk mendownload data dalam format CSV
+    function downloadData() {
+      const data = allData.map(d => ({
+        waktu: d.time.toLocaleString(),
+        suhu: d.suhu,
+        kelembapan: d.kelembapan
+      }));
+
+      let csvContent = "Waktu,Suhu (°C),Kelembapan (%)\n";
+      data.forEach(d => {
+        csvContent += `${d.waktu},${d.suhu},${d.kelembapan}\n`;
+      });
+
+      // Membuat link download CSV
+      const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "data_logger.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Ambil data saat halaman dimuat
+    setInterval(fetchData, 10000); // Update data setiap 10 detik
+    fetchData();
+  </script>
+</body>
+</html>
